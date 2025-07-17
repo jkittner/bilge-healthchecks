@@ -68,6 +68,11 @@ setup()
 void
 loop()
 {
+    if (WiFi.status() != WL_CONNECTED) {
+        digitalWrite(D0, LOW);
+        delay(200);
+        digitalWrite(D0, HIGH);
+    }
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         Sensor &current_sensor = sensors[i];
         /* LOW = OK (closed), HIGH = open (ALARM) */

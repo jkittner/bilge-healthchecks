@@ -35,6 +35,8 @@ const unsigned long health_check_interval = 5UL * 60UL * 1000UL;  // 5 minutes
 
 Compile and send the program to the NodeMCU.
 
+### Wiring
+
 The following pins are used
 
 | pin | target sensor  |
@@ -45,6 +47,17 @@ The following pins are used
 
 A closed circuit means healthy, an open circuit means faulty. This can be tested by
 simply using a cable and pull the pins to ground (GND).
+
+### LED indicators
+
+- blue LED flashes every `health_check_interval` milliseconds n-sensor times. E.g. If we
+  have three sensors, and our `health_check_interval` is 5 minutes the blue LED will
+  flash three times every 5 minutes. This indicates a healthy state if no red LED is
+  active.
+- red LED lights up consistently: This means there is an ongoing alarm with any of the
+  sensors connected
+- red LED permanently flashes: The WiFi connection is lost no data can be transmitted
+  and alarms will be lost. The device is in unhealthy state.
 
 ## Adding additional sensors
 
