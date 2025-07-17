@@ -27,6 +27,21 @@ Sensor sensors[]{{"bilge-forepeak", D1, true, 0},
 WiFiClient client;
 
 void
+WiFiSetup()
+{
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(500);
+    }
+    Serial.println(WiFi.localIP());
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    Serial.println("\nWiFi connected");
+}
+
+void
 setup()
 {
     Serial.begin(115200);
@@ -43,7 +58,7 @@ setup()
         delay(500);
         Serial.print(".");
     }
-    Serial.println("\nWiFi connected");
+    WiFiSetup();
 }
 
 void
@@ -72,13 +87,8 @@ loop()
 }
 
 void
-updateRemoteSensorState(Sensor sensor)
+updateRemoteSensorState(Sensor &sensor)
 {
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected, can't send ping.");
-        return;
-    }
-
     HTTPClient http;
     String target_url;
     if (sensor.state == LOW) {
