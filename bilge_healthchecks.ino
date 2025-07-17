@@ -53,7 +53,7 @@ loop()
 
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         Sensor &current_sensor = sensors[i];
-        /* HIGH = OK (closed), LOW = open (ALARM) */
+        /* LOW = OK (closed), HIGH = open (ALARM) */
         bool current_state = digitalRead(current_sensor.pin);
         // check if there was a change in the sensor state and update the remote
         // if so
