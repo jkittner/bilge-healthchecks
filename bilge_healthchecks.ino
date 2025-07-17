@@ -17,6 +17,8 @@ struct Sensor {
     int pin;
     bool state;
     unsigned long lastPingTime;
+    String url_ok;
+    String url_fail;
 };
 
 /* new sensors can be added here */
@@ -27,33 +29,48 @@ Sensor sensors[]{{"bilge-forepeak", D1, true, 0},
 WiFiClient client;
 
 void
+WiFiSetup()
+{
+    WiFi.begin(ssid, password);
+    Serial.print("Connecting to WiFi");
+    while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(500);
+    }
+    Serial.println(WiFi.localIP());
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    Serial.println("\nWiFi connected");
+}
+
+void
 setup()
 {
     Serial.begin(115200);
     delay(1000);
-
+    /* red fault LED */
+    pinMode(D0, OUTPUT);
+    /* blue status LED */
+    pinMode(D4, OUTPUT);
+    digitalWrite(D4, HIGH);
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         // NC input - use internal pull-up resistor
         pinMode(sensors[i].pin, INPUT_PULLUP);
+        /* build the ping URLs dynamically per sensor */
+        sensors[i].url_ok =
+            ping_base_url + ping_key + "/" + String(sensors[i].sensor_name);
+        sensors[i].url_fail = ping_base_url + ping_key + "/" +
+                              String(sensors[i].sensor_name) + "/fail";
     }
-
-    WiFi.begin(ssid, password);
-    Serial.print("Connecting to WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-    }
-    Serial.println("\nWiFi connected");
+    WiFiSetup();
 }
 
 void
 loop()
 {
-    unsigned long now = millis();
-
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         Sensor &current_sensor = sensors[i];
-        /* HIGH = OK (closed), LOW = open (ALARM) */
+        /* LOW = OK (closed), HIGH = open (ALARM) */
         bool current_state = digitalRead(current_sensor.pin);
         // check if there was a change in the sensor state and update the remote
         // if so
@@ -61,37 +78,45 @@ loop()
             current_sensor.state = current_state;
             updateRemoteSensorState(current_sensor);
         }
-        /* periodic check to see if the wifi is still online */
-        if (millis() - current_sensor.lastPingTime >= health_check_interval) {
+        /* periodic check to see if the wifi is still online
+           https://www.norwegiancreations.com/2018/10/arduino-tutorial-avoiding-the-overflow-issue-when-using-millis-and-micros/
+           This still works fine when the millis() overflow e.g. last ping was
+           at 4294967290, however, a bit later millis() returns e.g. 320000
+           320000 - 4294967290 casted to an unsigned long results in 4294647290
+           which is greater than the health_check_interval hence the call is
+           triggered. The new lastPingTime would be 320000 hence we're back to
+           normal.
+        */
+        if ((unsigned long)(millis() - current_sensor.lastPingTime) >=
+            health_check_interval) {
             Serial.println("sending periodic ping");
             updateRemoteSensorState(current_sensor);
             current_sensor.lastPingTime = millis();
+            /* signal we're still alive */
+            digitalWrite(D4, LOW);
+            delay(100);
+            digitalWrite(D4, HIGH);
+            delay(100);
         }
     }
     delay(200);  // Poll every 200ms
 }
 
 void
-updateRemoteSensorState(Sensor sensor)
+updateRemoteSensorState(Sensor &sensor)
 {
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("WiFi not connected, can't send ping.");
-        return;
-    }
-
     HTTPClient http;
     String target_url;
     if (sensor.state == LOW) {
-        target_url =
-            ping_base_url + ping_key + "/" + String(sensor.sensor_name);
+        http.begin(client, sensor.url_ok);
+        digitalWrite(D0, HIGH);
         Serial.println("OK: Contact closed!");
     }
     else {
-        target_url = ping_base_url + ping_key + "/" +
-                     String(sensor.sensor_name) + "/fail";
+        http.begin(client, sensor.url_fail);
+        digitalWrite(D0, LOW);
         Serial.println("FAULT: Contact open!");
     }
-    http.begin(client, target_url);
     int httpCode = http.GET();
     http.end();
 
