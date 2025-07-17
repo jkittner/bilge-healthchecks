@@ -17,6 +17,8 @@ struct Sensor {
     int pin;
     bool state;
     unsigned long lastPingTime;
+    String url_ok;
+    String url_fail;
 };
 
 /* new sensors can be added here */
@@ -50,13 +52,11 @@ setup()
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         // NC input - use internal pull-up resistor
         pinMode(sensors[i].pin, INPUT_PULLUP);
-    }
-
-    WiFi.begin(ssid, password);
-    Serial.print("Connecting to WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
+        /* build the ping URLs dynamically per sensor */
+        sensors[i].url_ok =
+            ping_base_url + ping_key + "/" + String(sensors[i].sensor_name);
+        sensors[i].url_fail = ping_base_url + ping_key + "/" +
+                              String(sensors[i].sensor_name) + "/fail";
     }
     WiFiSetup();
 }
@@ -92,16 +92,13 @@ updateRemoteSensorState(Sensor &sensor)
     HTTPClient http;
     String target_url;
     if (sensor.state == LOW) {
-        target_url =
-            ping_base_url + ping_key + "/" + String(sensor.sensor_name);
+        http.begin(client, sensor.url_ok);
         Serial.println("OK: Contact closed!");
     }
     else {
-        target_url = ping_base_url + ping_key + "/" +
-                     String(sensor.sensor_name) + "/fail";
+        http.begin(client, sensor.url_fail);
         Serial.println("FAULT: Contact open!");
     }
-    http.begin(client, target_url);
     int httpCode = http.GET();
     http.end();
 
