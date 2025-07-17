@@ -64,8 +64,6 @@ setup()
 void
 loop()
 {
-    unsigned long now = millis();
-
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         Sensor &current_sensor = sensors[i];
         /* LOW = OK (closed), HIGH = open (ALARM) */
@@ -76,8 +74,17 @@ loop()
             current_sensor.state = current_state;
             updateRemoteSensorState(current_sensor);
         }
-        /* periodic check to see if the wifi is still online */
-        if (millis() - current_sensor.lastPingTime >= health_check_interval) {
+        /* periodic check to see if the wifi is still online
+           https://www.norwegiancreations.com/2018/10/arduino-tutorial-avoiding-the-overflow-issue-when-using-millis-and-micros/
+           This still works fine when the millis() overflow e.g. last ping was
+           at 4294967290, however, a bit later millis() returns e.g. 320000
+           320000 - 4294967290 casted to an unsigned long results in 4294647290
+           which is greater than the health_check_interval hence the call is
+           triggered. The new lastPingTime would be 320000 hence we're back to
+           normal.
+        */
+        if ((unsigned long)(millis() - current_sensor.lastPingTime) >=
+            health_check_interval) {
             Serial.println("sending periodic ping");
             updateRemoteSensorState(current_sensor);
             current_sensor.lastPingTime = millis();
