@@ -27,6 +27,7 @@ Sensor sensors[]{{"bilge-forepeak", D1, true, 0},
                  {"bilge-aft", D5, true, 0}};
 
 WiFiClient client;
+bool wifiWasConnected = true;
 
 void
 WiFiSetup()
@@ -68,10 +69,12 @@ setup()
 void
 loop()
 {
-    if (WiFi.status() != WL_CONNECTED) {
+    bool currentlyConnected = WiFi.status() == WL_CONNECTED;
+    if (!currentlyConnected) {
         digitalWrite(D0, LOW);
         delay(200);
         digitalWrite(D0, HIGH);
+        wifiWasConnected = false;
     }
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         Sensor &current_sensor = sensors[i];
@@ -79,9 +82,11 @@ loop()
         bool current_state = digitalRead(current_sensor.pin);
         // check if there was a change in the sensor state and update the remote
         // if so
-        if (current_state != current_sensor.state) {
+        if ((current_state != current_sensor.state && currentlyConnected) ||
+            (currentlyConnected && !wifiWasConnected)) {
             current_sensor.state = current_state;
             updateRemoteSensorState(current_sensor);
+            updateFaultLed();
         }
         /* periodic check to see if the wifi is still online
            https://www.norwegiancreations.com/2018/10/arduino-tutorial-avoiding-the-overflow-issue-when-using-millis-and-micros/
@@ -96,6 +101,7 @@ loop()
             health_check_interval) {
             Serial.println("sending periodic ping");
             updateRemoteSensorState(current_sensor);
+            updateFaultLed();
             current_sensor.lastPingTime = millis();
             /* signal we're still alive */
             digitalWrite(D4, LOW);
@@ -103,6 +109,9 @@ loop()
             digitalWrite(D4, HIGH);
             delay(100);
         }
+    }
+    if (currentlyConnected) {
+        wifiWasConnected = true;
     }
     delay(200);  // Poll every 200ms
 }
@@ -114,12 +123,10 @@ updateRemoteSensorState(Sensor &sensor)
     String target_url;
     if (sensor.state == LOW) {
         http.begin(client, sensor.url_ok);
-        digitalWrite(D0, HIGH);
         Serial.println("OK: Contact closed!");
     }
     else {
         http.begin(client, sensor.url_fail);
-        digitalWrite(D0, LOW);
         Serial.println("FAULT: Contact open!");
     }
     int httpCode = http.GET();
@@ -127,4 +134,17 @@ updateRemoteSensorState(Sensor &sensor)
 
     Serial.printf("Sent ping for %s, status code: %d\n", sensor.sensor_name,
                   httpCode);
+}
+
+void
+updateFaultLed()
+{
+    bool anyFault = false;
+    for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
+        if (sensors[i].state == HIGH) {
+            anyFault = true;
+            break;
+        }
+    }
+    digitalWrite(D0, anyFault ? LOW : HIGH);
 }
