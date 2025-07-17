@@ -48,7 +48,11 @@ setup()
 {
     Serial.begin(115200);
     delay(1000);
-
+    /* red fault LED */
+    pinMode(D0, OUTPUT);
+    /* blue status LED */
+    pinMode(D4, OUTPUT);
+    digitalWrite(D4, HIGH);
     for (int i = 0; i < sizeof(sensors) / sizeof(sensors[0]); i++) {
         // NC input - use internal pull-up resistor
         pinMode(sensors[i].pin, INPUT_PULLUP);
@@ -88,6 +92,11 @@ loop()
             Serial.println("sending periodic ping");
             updateRemoteSensorState(current_sensor);
             current_sensor.lastPingTime = millis();
+            /* signal we're still alive */
+            digitalWrite(D4, LOW);
+            delay(100);
+            digitalWrite(D4, HIGH);
+            delay(100);
         }
     }
     delay(200);  // Poll every 200ms
@@ -100,10 +109,12 @@ updateRemoteSensorState(Sensor &sensor)
     String target_url;
     if (sensor.state == LOW) {
         http.begin(client, sensor.url_ok);
+        digitalWrite(D0, HIGH);
         Serial.println("OK: Contact closed!");
     }
     else {
         http.begin(client, sensor.url_fail);
+        digitalWrite(D0, LOW);
         Serial.println("FAULT: Contact open!");
     }
     int httpCode = http.GET();
