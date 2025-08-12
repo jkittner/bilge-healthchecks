@@ -22,9 +22,7 @@ struct Sensor {
 };
 
 /* new sensors can be added here */
-Sensor sensors[]{{"bilge-forepeak", D1, true, 0},
-                 {"bilge-midships", D2, true, 0},
-                 {"bilge-aft", D5, true, 0}};
+Sensor sensors[]{{"bilge-alarm", D1, true, 0}};
 
 WiFiClient client;
 bool wifiWasConnected = true;
